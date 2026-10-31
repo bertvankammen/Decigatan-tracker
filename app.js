@@ -165,7 +165,7 @@ function sendBackgroundNotification(title, body) {
             registration.showNotification(title, {
                 body: body,
                 icon: 'https://flaticon.com',
-                vibrate:,
+                vibrate:[200, 100, 200, 100, 200, 100, 200],
                 badge: 'https://flaticon.com'
             });
         });
