@@ -9,6 +9,7 @@ const schema = [
 let currentDay = parseInt(localStorage.getItem('dec_day')) || 1;
 let progress = JSON.parse(localStorage.getItem('dec_progress')) || {};
 let startTimes = JSON.parse(localStorage.getItem('dec_startTimes')) || {};
+let isEnteringStartTime = false;
 
 function getSchemaForDay(day) {
     return schema.find(s => day >= s.start && day <= s.end);
@@ -64,7 +65,7 @@ function updateUI() {
         if (dayStartTime) {
             let startTimeDate = new Date(dayStartTime);
             let pillTime = new Date(startTimeDate.getTime() + (i - 1) * dayInfo.intervalHours * 60 * 60 * 1000);
-            timeString = pillTime.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
+            timeString = formatTime(pillTime);
         } else if (i === 1) {
             timeString = "Bij inname Pil 1";
         }
@@ -74,13 +75,29 @@ function updateUI() {
         const row = document.createElement('div');
         row.className = `pill-row ${isTaken ? 'taken' : ''}`;
 
-        row.innerHTML = `
-        <div class="pill-info">
-            <div class="pill-name">Pil ${i}</div>
-            <div class="pill-time">🕒 Tijdstip: ${timeString}</div>
-        </div>
-        <div class="pill-checkbox" onclick="togglePill(${i})">✓</div>
-    `;
+        if (i === 1 && isEnteringStartTime) {
+            row.innerHTML = `
+            <div class="pill-info">
+                <div class="pill-name">Pil 1</div>
+                <div class="time-entry">
+                    <label for="start-time-input">Ingenomen om</label>
+                    <input type="time" id="start-time-input" value="${formatTime(new Date())}">
+                </div>
+                <div class="time-entry-buttons">
+                    <button class="confirm-btn" onclick="confirmStartTime()">Bevestigen</button>
+                    <button class="cancel-btn" onclick="cancelStartTime()">Annuleren</button>
+                </div>
+            </div>
+        `;
+        } else {
+            row.innerHTML = `
+            <div class="pill-info">
+                <div class="pill-name">Pil ${i}</div>
+                <div class="pill-time">🕒 Tijdstip: ${timeString}</div>
+            </div>
+            <div class="pill-checkbox" onclick="togglePill(${i})">✓</div>
+        `;
+        }
         listBox.appendChild(row);
     }
 
@@ -94,9 +111,7 @@ function togglePill(pillNumber) {
     const dayInfo = getSchemaForDay(currentDay);
 
     if (pillNumber === 1 && takenToday === 0) {
-        startTimes[currentDay] = new Date().toISOString();
-        progress[currentDay] = 1;
-        planNextNotification(2, dayInfo.intervalHours);
+        isEnteringStartTime = true;
     } else if (pillNumber <= takenToday) {
         progress[currentDay] = pillNumber - 1;
         if (pillNumber === 1) {
@@ -111,9 +126,37 @@ function togglePill(pillNumber) {
     updateUI();
 }
 
-function planNextNotification(nextPillNumber, intervalHours) {
+function formatTime(date) {
+    return date.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
+}
+
+function confirmStartTime() {
+    const value = document.getElementById('start-time-input').value;
+    if (!value) {
+        alert("Vul een geldig tijdstip in.");
+        return;
+    }
+    const [hours, minutes] = value.split(':').map(Number);
+    const startTime = new Date();
+    startTime.setHours(hours, minutes, 0, 0);
+
+    const dayInfo = getSchemaForDay(currentDay);
+    startTimes[currentDay] = startTime.toISOString();
+    progress[currentDay] = 1;
+    isEnteringStartTime = false;
+    planNextNotification(2, dayInfo.intervalHours, startTime);
+    updateUI();
+}
+
+function cancelStartTime() {
+    isEnteringStartTime = false;
+    updateUI();
+}
+
+function planNextNotification(nextPillNumber, intervalHours, fromTime = new Date()) {
     if (window.Notification && Notification.permission === "granted") {
-        const delayInMs = intervalHours * 60 * 60 * 1000;
+        const delayInMs = fromTime.getTime() + intervalHours * 60 * 60 * 1000 - Date.now();
+        if (delayInMs <= 0) return;
         setTimeout(() => {
             new Notification("Tijd voor Decigatan!", {
                 body: `Het is tijd om Pil ${nextPillNumber} van vandaag te nemen.`,
@@ -125,6 +168,7 @@ function planNextNotification(nextPillNumber, intervalHours) {
 
 function changeDay(direction) {
     currentDay += direction;
+    isEnteringStartTime = false;
     updateUI();
 }
 function resetTracker() {
@@ -132,6 +176,7 @@ function resetTracker() {
         currentDay = 1;
         progress = {};
         startTimes = {};
+        isEnteringStartTime = false;
         updateUI();
     }
 }
