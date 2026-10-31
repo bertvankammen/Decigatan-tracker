@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Decigatan Tracker & Wekker</title>
+    <title>Decigatan Tracker</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -262,18 +262,15 @@
         const dayInfo = getSchemaForDay(currentDay);
 
         if (pillNumber === 1 && takenToday === 0) {
-            // Eerste pil wordt nu ingenomen, zet de starttijd vast op NU
             startTimes[currentDay] = new Date().toISOString();
             progress[currentDay] = 1;
             planNextNotification(2, dayInfo.intervalHours);
         } else if (pillNumber <= takenToday) {
-            // Ongedaan maken tot dit nummer
             progress[currentDay] = pillNumber - 1;
             if (pillNumber === 1) {
                 delete startTimes[currentDay];
             }
         } else {
-            // Markeer als ingenomen
             progress[currentDay] = pillNumber;
             if (pillNumber < dayInfo.max) {
                 planNextNotification(pillNumber + 1, dayInfo.intervalHours);
@@ -285,18 +282,25 @@
     function planNextNotification(nextPillNumber, intervalHours) {
         if (window.Notification && Notification.permission === "granted") {
             const delayInMs = intervalHours * 60 * 60 * 1000;
-            
-            // Omdat we in een standaard web-app zitten, bootsen we de timer na zolang de browser open staat
-            // Voor waterdichte herinneringen buiten de app adviseren we ook de systeem-wekker
-setTimeout(() => {
-new Notification("Tijd voor Decigatan!", {
-body: Het is tijd om Pil ${nextPillNumber} van vandaag te nemen.,
-icon: "placeholder.com"
-});
-}, delayInMs);
-}
-}
-function changeDay(direction) {
+            setTimeout(() => {
+                new Notification("Tijd voor Decigatan!", {
+                    body: `Het is tijd om Pil ${nextPillNumber} van vandaag te nemen.`,
+                    icon: "https://placeholder.com"
+                });
+            }, delayInMs);
+        }
+    }
+
+    function changeDay(direction) {
 currentDay += direction;
 updateUI();
 }
+function resetTracker() {
+if(confirm("Weet je zeker dat je ALLES wilt resetten?")) {
+currentDay = 1;
+progress = {};
+startTimes = {};
+updateUI();
+}
+}
+updateUI();
