@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Decigatan Tracker</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f4f7f6;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            font-size: 24px;
+        }
+        .status-card {
+            background: #eef2f7;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .day-title {
+            font-size: 20px;
+            font-weight: bold;
+            color: #3498db;
+        }
+        .instruction {
+            font-size: 14px;
+            color: #7f8c8d;
+            margin-top: 5px;
+        }
+        .pills-container {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        .pill {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background-color: #ddd;
+            border: 2px solid #bdc3c7;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .pill.taken {
+            background-color: #2ecc71;
+            border-color: #27ae60;
+            color: white;
+        }
+        .nav-buttons {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+        }
+        button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:disabled {
+            background: #bdc3c7;
+        }
+        .reset-btn {
+            background: #e74c3c;
+            width: 100%;
+            margin-top: 20px;
+        }
+        .warning {
+            background: #fff3cd;
+            color: #856404;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 13px;
+            margin-top: 10px;
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Decigatan Tracker</h1>
+    
+    <div class="status-card">
+        <div id="day-display" class="day-title">Laden...</div>
+        <div id="instruction-display" class="instruction">Laden...</div>
+        <div id="warning-display" class="warning" style="display:none;"></div>
+    </div>
+
+    <h3 style="text-align:center;">Tik op een tablet om inname te registreren:</h3>
+    <div class="pills-container" id="pills-box"></div>
+
+    <div class="nav-buttons">
+        <button id="prev-btn" onclick="changeDay(-1)">Vorige Dag</button>
+        <button id="next-btn" onclick="changeDay(1)">Volgende Dag</button>
+    </div>
+
+    <button class="reset-btn" onclick="resetTracker()">Reset Schema</button>
+</div>
+
+<script>
+    // Het officiële 25-daagse Decigatan schema
+    const schema = [
+        { start: 1, end: 3, max: 6, interval: "om de 2 uur", note: "" },
+        { start: 4, end: 12, max: 5, interval: "om de 2,5 uur", note: "⚠️ Uiterlijk op dag 5 volledig stoppen met roken!" },
+        { start: 13, end: 16, max: 4, interval: "om de 3 uur", note: "" },
+        { start: 17, end: 20, max: 3, interval: "om de 5 uur", note: "" },
+        { start: 21, end: 25, max: 2, interval: "1 à 2 tabletten per dag", note: "" }
+    ];
+
+    let currentDay = parseInt(localStorage.getItem('decigatan_currentDay')) || 1;
+    let progress = JSON.parse(localStorage.getItem('decigatan_progress')) || {};
+
+    function getSchemaForDay(day) {
+        return schema.find(s => day >= s.start && day <= s.end);
+    }
+
+    function updateUI() {
+        const dayInfo = getSchemaForDay(currentDay);
+        if (!dayInfo) return;
+
+        document.getElementById('day-display').innerText = `Dag ${currentDay} van 25`;
+        document.getElementById('instruction-display').innerText = `${dayInfo.max} tabletten per dag (${dayInfo.interval})`;
+        
+        const warningBox = document.getElementById('warning-display');
+        if(dayInfo.note) {
+            warningBox.innerText = dayInfo.note;
+            warningBox.style.display = 'block';
+        } else {
+            warningBox.style.display = 'none';
+        }
+
+        // Knoppen bijwerken
+        document.getElementById('prev-btn').disabled = currentDay === 1;
+        document.getElementById('next-btn').disabled = currentDay === 25;
+
+        // Tabletten genereren
+        const pillsBox = document.getElementById('pills-box');
+        pillsBox.innerHTML = '';
+        
+        const takenToday = progress[currentDay] || 0;
+
+        for (let i = 1; i <= dayInfo.max; i++) {
+            const pill = document.createElement('div');
+            pill.className = `pill ${i <= takenToday ? 'taken' : ''}`;
+            pill.innerText = i;
+            pill.onclick = () => togglePill(i);
+            pillsBox.appendChild(pill);
+        }
+
+        // Opslaan in geheugen
+        localStorage.setItem('decigatan_currentDay', currentDay);
+        localStorage.setItem('decigatan_progress', JSON.stringify(progress));
+    }
+
+    function togglePill(pillNumber) {
+        let takenToday = progress[currentDay] || 0;
+        if (pillNumber <= takenToday) {
+            progress[currentDay] = pillNumber - 1;
+        } else {
+            progress[currentDay] = pillNumber;
+        }
+        updateUI();
+    }
+
+    function changeDay(direction) {
+        currentDay += direction;
+        if (currentDay < 1) currentDay = 1;
+        if (currentDay > 25) currentDay = 25;
+        updateUI();
+    }
+
+    function resetTracker() {
+        if(confirm("Weet je zeker dat je het schema wilt resetten naar Dag 1?")) {
+            currentDay = 1;
+            progress = {};
+            updateUI();
+        }
+    }
+
+    // Start de app
+    updateUI();
+</script>
+
+</body>
+</html>
