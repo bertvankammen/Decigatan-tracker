@@ -23,14 +23,15 @@ function requestNotificationPermission() {
     Notification.requestPermission().then(permission => {
         if (permission === "granted") {
             document.getElementById('noti-btn').style.display = 'none';
-            new Notification("Decigatan Tracker", { body: "Herinneringen zijn succesvol geactiveerd!" });
+            sendBackgroundNotification("Decigatan Tracker", "Herinneringen zijn succesvol geactiveerd!");
         }
     });
 }
 
 function checkPermissionStatus() {
     if (window.Notification && Notification.permission === "granted") {
-        document.getElementById('noti-btn').style.display = 'none';
+        const notiBtn = document.getElementById('noti-btn');
+        if (notiBtn) notiBtn.style.display = 'none';
     }
 }
 
@@ -120,7 +121,8 @@ function togglePill(pillNumber) {
     } else {
         progress[currentDay] = pillNumber;
         if (pillNumber < dayInfo.max) {
-            planNextNotification(pillNumber + 1, dayInfo.intervalHours);
+            let baseTime = startTimes[currentDay] ? new Date(startTimes[currentDay]) : new Date();
+            planNextNotification(pillNumber + 1, dayInfo.intervalHours, baseTime);
         }
     }
     updateUI();
@@ -144,7 +146,10 @@ function confirmStartTime() {
     startTimes[currentDay] = startTime.toISOString();
     progress[currentDay] = 1;
     isEnteringStartTime = false;
-    planNextNotification(2, dayInfo.intervalHours, startTime);
+    
+    if (dayInfo.max > 1) {
+        planNextNotification(2, dayInfo.intervalHours, startTime);
+    }
     updateUI();
 }
 
@@ -153,15 +158,34 @@ function cancelStartTime() {
     updateUI();
 }
 
+// PWA achtergrond-notificatie helper
+function sendBackgroundNotification(title, body) {
+    if ('serviceWorker' in navigator && window.Notification && Notification.permission === "granted") {
+        navigator.serviceWorker.ready.then(registration => {
+            registration.showNotification(title, {
+                body: body,
+                icon: 'https://flaticon.com',
+                vibrate:,
+                badge: 'https://flaticon.com'
+            });
+        });
+    }
+}
+
 function planNextNotification(nextPillNumber, intervalHours, fromTime = new Date()) {
     if (window.Notification && Notification.permission === "granted") {
-        const delayInMs = fromTime.getTime() + intervalHours * 60 * 60 * 1000 - Date.now();
+        // Bereken exact doel-tijdstip op basis van starttijd + interval van de vorige pillen
+        const pillIndex = nextPillNumber - 1; 
+        const targetTimeMs = fromTime.getTime() + (pillIndex * intervalHours * 60 * 60 * 1000);
+        const delayInMs = targetTimeMs - Date.now();
+        
         if (delayInMs <= 0) return;
+
         setTimeout(() => {
-            new Notification("Tijd voor Decigatan!", {
-                body: `Het is tijd om Pil ${nextPillNumber} van vandaag te nemen.`,
-                icon: "https://placeholder.com"
-            });
+            sendBackgroundNotification(
+                "Tijd voor Decigatan!", 
+                `Het is tijd om Pil ${nextPillNumber} van vandaag te nemen.`
+            );
         }, delayInMs);
     }
 }
@@ -171,6 +195,7 @@ function changeDay(direction) {
     isEnteringStartTime = false;
     updateUI();
 }
+
 function resetTracker() {
     if (confirm("Weet je zeker dat je ALLES wilt resetten?")) {
         currentDay = 1;
@@ -180,14 +205,14 @@ function resetTracker() {
         updateUI();
     }
 }
-updateUI();
 
 // Service Worker registreren
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js')
-      .then(reg => console.log('Service Worker geregistreerd!', reg))
-      .catch(err => console.log('Service Worker faal:', err));
-  });
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+            .then(reg => console.log('Service Worker geregistreerd!', reg))
+            .catch(err => console.log('Service Worker faal:', err));
+    });
 }
 
+updateUI();
